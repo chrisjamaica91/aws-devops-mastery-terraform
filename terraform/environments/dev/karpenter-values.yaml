@@ -1,0 +1,37 @@
+# Karpenter Helm Chart Values
+# This configures the Karpenter controller deployment
+
+settings:
+  # AWS configuration
+  clusterName: aws-devops-mastery-dev
+  clusterEndpoint: https://F3A83F1BC815627E1BFD030D6D619189.gr7.us-east-2.eks.amazonaws.com  # From terraform output
+  defaultInstanceProfile: aws-devops-mastery-dev-karpenter-node  # From terraform output
+  interruptionQueue: aws-devops-mastery-dev-karpenter-interruption  # SQS queue from terraform
+
+# ServiceAccount for IRSA (IAM Role for Service Account)
+serviceAccount:
+  create: true
+  name: karpenter
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::737026300147:role/aws-devops-mastery-dev-karpenter-controller  # From terraform output
+
+# Controller configuration
+replicas: 1  # HA for production, 1 for dev is fine
+
+# Resource limits
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Log verbosity
+logLevel: info  # Use 'debug' for troubleshooting
+
+# Webhook configuration
+webhook:
+  enabled: true
+  port: 8443
