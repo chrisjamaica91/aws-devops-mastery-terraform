@@ -15,7 +15,7 @@ on:
     paths:
       - 'terraform/environments/dev/**'
       - 'terraform/modules/**'
-      - '.github/workflows/dev-plan.yml'
+      - '.github/workflows/**'
 
   workflow_dispatch:
 
@@ -29,67 +29,86 @@ env:
   AWS_REGION: us-east-2
 
 jobs:
-  terraform-plan:
-    name: Scan & Plan Dev Infrastructure
+  # ============================================================================
+  # JOB 1: SECRETS SCANNING
+  # ============================================================================
+  # Runs independently in parallel with other security checks
+  # Duration: ~5-10 seconds
+  # ============================================================================
+  secrets-scan:
+    name: 🔐 Detect Secrets
     runs-on: ubuntu-latest
-
+    
     steps:
-      # ========================================
-      # STEP 1: Get the code
-      # ========================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ========================================
-      # STEP 2: Install Terraform
-      # ========================================
+      - name: Run gitleaks
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # JOB 2: TERRAFORM LINTING
+  # ============================================================================
+  # Checks Terraform syntax and best practices
+  # Duration: ~15-20 seconds
+  # ============================================================================
+  lint:
+    name: 🔍 Lint Terraform
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.0
 
-      # ========================================
-      # STEP 3: Authenticate to AWS via OIDC
-      # ========================================
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::737026300147:role/GitHubActionsRole
-          aws-region: ${{ env.AWS_REGION }}
-
-      # ========================================
-      # STEP 4: Initialize Terraform
-      # ========================================
       - name: Terraform Init
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform init
 
-      # ========================================
-      # STEP 5: Scan for Secrets
-      # ========================================
-      - name: Run gitleaks (Secret Detection)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # ========================================
-      # STEP 6: Terraform Linting
-      # ========================================
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: v0.50.0
 
       - name: Run TFLint
+        id: tflint
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: |
           tflint --init
           tflint --format compact
 
-      # ========================================
-      # STEP 7: Security Scanning (Basic)
-      # ========================================
+  # ============================================================================
+  # JOB 3: SECURITY SCANNING
+  # ============================================================================
+  # Scans for security misconfigurations (AWS-specific issues)
+  # Duration: ~20-30 seconds
+  # ============================================================================
+  security:
+    name: 🛡️ Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
+
       - name: Run tfsec
+        id: tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: ${{ env.TERRAFORM_DIR }}
@@ -97,32 +116,54 @@ jobs:
           format: default
           additional_args: --minimum-severity MEDIUM
 
-      # ========================================
-      # STEP 8: Validate Terraform Syntax
-      # ========================================
+          
+  # ============================================================================
+  # JOB 4: TERRAFORM PLAN
+  # ============================================================================
+  # Waits for all security scans to pass, then creates the plan
+  # Duration: ~60 seconds
+  # ============================================================================
+  terraform-plan:
+    name: 📋 Plan Infrastructure Changes
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, lint, security]  # 🔥 WAITS for all 3 jobs to pass!
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::737026300147:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
+
       - name: Terraform Validate
+        id: validate
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform validate
 
-      # ========================================
-      # STEP 9: Check Code Formatting
-      # ========================================
       - name: Terraform Format Check
+        id: fmt
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform fmt -check -recursive
 
-      # ========================================
-      # STEP 10: Create Terraform Plan
-      # ========================================
       - name: Terraform Plan
         id: plan
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
         continue-on-error: true
-      # ========================================
-      # STEP 11: Capture Plan Output
-      # ========================================
+
       - name: Save Plan Output
         if: always()
         run: |
@@ -130,17 +171,11 @@ jobs:
           cat ${{ env.TERRAFORM_DIR }}/plan_output.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      # ========================================
-      # STEP 12: Setup Infracost
-      # ========================================
       - name: Setup Infracost
         uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
-      # ========================================
-      # STEP 13: Generate Cost Estimate
-      # ========================================
       - name: Generate Infracost Breakdown
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: |
@@ -149,7 +184,7 @@ jobs:
             --out-file infracost.json
 
       # ========================================
-      # STEP 14: Post Results to PR
+      # Post comprehensive results to PR
       # ========================================
       - name: Comment PR with Results
         uses: actions/github-script@v7
@@ -163,20 +198,37 @@ jobs:
               ? JSON.parse(fs.readFileSync('${{ env.TERRAFORM_DIR }}/infracost.json', 'utf8'))
               : null;
             
+            // Build comprehensive comment with ALL job results
             let comment = `## 🏗️ Dev Environment Terraform Plan\n\n`;
+            
+            // Security scan results from OTHER jobs
+            comment += `### 🔒 Security Scan Results\n`;
+            comment += `- 🔐 Secrets Detection: **${{ needs.secrets-scan.result }}**\n`;
+            comment += `- 🔍 Terraform Linting: **${{ needs.lint.result }}**\n`;
+            comment += `- 🛡️ Security Scanning: **${{ needs.security.result }}**\n\n`;
+            
+            // Validation results from THIS job
+            comment += `### ✅ Validation\n`;
+            comment += `- Terraform Validate: **${{ steps.validate.outcome }}**\n`;
+            comment += `- Format Check: **${{ steps.fmt.outcome }}**\n\n`;
+            
+            // Plan output
             comment += `### 📋 Plan Output\n\`\`\`terraform\n${planOutput}\n\`\`\`\n\n`;
             
+            // Cost estimate
             if (infracost && infracost.totalMonthlyCost) {
               comment += `### 💰 Cost Estimate\n`;
               comment += `**Monthly Cost:** $${infracost.totalMonthlyCost}\n`;
               comment += `**Cost Change:** ${infracost.diffTotalMonthlyCost > 0 ? '+' : ''}$${infracost.diffTotalMonthlyCost}/month\n\n`;
             }
             
+            // Next steps
             comment += `### ✅ Next Steps\n`;
             comment += `- Review the plan output above\n`;
             comment += `- Check cost estimates\n`;
             comment += `- Approve if changes look correct\n`;
             
+            // Post the comment
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -184,14 +236,15 @@ jobs:
               body: comment
             });
 
-      # SECTION 20: Check if plan failed and fail workflow if it did
+      # ========================================
+      # Error handling
+      # ========================================
       - name: Check Plan Result
         if: steps.plan.outcome == 'failure'
         run: |
           echo "❌ Terraform plan failed. Please review the errors above."
           exit 1
 
-      # SECTION 21: Upload plan file for apply workflow
       - name: Upload Plan Artifact
         if: steps.plan.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -200,13 +253,16 @@ jobs:
           path: terraform/environments/dev/tfplan
           retention-days: 30
 
-      # SECTION 22: Create workflow summary (visible in Actions tab)
+      # ========================================
+      # Workflow summary
+      # ========================================
       - name: Generate Workflow Summary
         if: always()
         run: |
           echo "## 🏗️ Dev Environment - Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
+          # Plan status
           if [ "${{ steps.plan.outcome }}" == "success" ]; then
             echo "✅ **Plan Status:** Success" >> $GITHUB_STEP_SUMMARY
           else
@@ -214,10 +270,10 @@ jobs:
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Security Scans" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔐 Secrets Detection (gitleaks): ${{ steps.gitleaks.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 Terraform Linting (TFLint): ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🛡️ Security Scanning (tfsec): ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Security Scans (Parallel Execution)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 Secrets Detection: ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Terraform Linting: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛡️ Security Scanning: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Validation" >> $GITHUB_STEP_SUMMARY
@@ -226,4 +282,4 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "_View detailed results in the PR comment above._" >> $GITHUB_STEP_SUMMARY
+          echo "_⚡ Total runtime: ~60-90 seconds (parallel execution)_" >> $GITHUB_STEP_SUMMARY
