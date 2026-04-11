@@ -9,7 +9,7 @@
 variable "cluster_name" {
   description = "Name of the EKS cluster"
   type        = string
-  
+
   validation {
     condition     = length(var.cluster_name) <= 40
     error_message = "Cluster name must be 40 characters or less."
@@ -19,7 +19,7 @@ variable "cluster_name" {
 variable "environment" {
   description = "Environment (dev, staging, production)"
   type        = string
-  
+
   validation {
     condition     = contains(["dev", "staging", "production"], var.environment)
     error_message = "Environment must be dev, staging, or production."
@@ -43,7 +43,7 @@ variable "vpc_id" {
 variable "private_subnet_ids" {
   description = "List of private subnet IDs for EKS nodes"
   type        = list(string)
-  
+
   validation {
     condition     = length(var.private_subnet_ids) >= 2
     error_message = "At least 2 private subnets required for EKS high availability."
@@ -69,7 +69,7 @@ variable "enable_public_endpoint" {
 variable "api_access_cidrs" {
   description = "CIDR blocks allowed to access public API endpoint"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # Dev: open, Prod: restrict to office/VPN
+  default     = ["0.0.0.0/0"] # Dev: open, Prod: restrict to office/VPN
 }
 
 # ==========================================
@@ -104,7 +104,7 @@ variable "managed_node_group_capacity_type" {
   description = "Capacity type: ON_DEMAND or SPOT"
   type        = string
   default     = "ON_DEMAND"
-  
+
   validation {
     condition     = contains(["ON_DEMAND", "SPOT"], var.managed_node_group_capacity_type)
     error_message = "Capacity type must be ON_DEMAND or SPOT."

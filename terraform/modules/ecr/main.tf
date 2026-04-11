@@ -18,22 +18,22 @@ terraform {
 
 resource "aws_ecr_repository" "service" {
   for_each = toset(var.service_names)
-  
+
   name                 = "${var.project_name}/${each.value}"
   image_tag_mutability = var.image_tag_mutability
-  
+
   # Encryption at rest
   encryption_configuration {
     encryption_type = var.encryption_type
     # Optional: Use KMS for customer-managed encryption
     kms_key = var.kms_key_arn
   }
-  
+
   # Vulnerability scanning
   image_scanning_configuration {
     scan_on_push = var.scan_on_push
   }
-  
+
   tags = merge(
     var.tags,
     {
@@ -50,9 +50,9 @@ resource "aws_ecr_repository" "service" {
 
 resource "aws_ecr_lifecycle_policy" "service" {
   for_each = aws_ecr_repository.service
-  
+
   repository = each.value.name
-  
+
   policy = jsonencode({
     rules = [
       {
@@ -72,9 +72,9 @@ resource "aws_ecr_lifecycle_policy" "service" {
         rulePriority = 2
         description  = "Keep last ${var.max_image_count} images"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = var.max_image_count
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.max_image_count
         }
         action = {
           type = "expire"
@@ -90,9 +90,9 @@ resource "aws_ecr_lifecycle_policy" "service" {
 
 resource "aws_ecr_repository_policy" "service" {
   for_each = var.enable_cross_account_access ? aws_ecr_repository.service : {}
-  
+
   repository = each.value.name
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

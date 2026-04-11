@@ -1,2 +1,5 @@
 aws_region = "us-east-1"
-github_repository = "chrisjamaica91/aws-devops-mastery"
+github_repositories = [
+  "chrisjamaica91/aws-devops-mastery",
+  "chrisjamaica91/aws-devops-mastery-terraform"
+]
