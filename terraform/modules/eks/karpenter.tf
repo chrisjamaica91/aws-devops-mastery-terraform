@@ -11,13 +11,13 @@ resource "aws_iam_service_linked_role" "spot" {
 
 resource "aws_iam_openid_connect_provider" "cluster" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
-  
+
   client_id_list = ["sts.amazonaws.com"]
-  
+
   thumbprint_list = [
     data.tls_certificate.cluster.certificates[0].sha1_fingerprint
   ]
-  
+
   tags = {
     Name = "${var.cluster_name}-eks-oidc-provider"
   }
@@ -26,7 +26,7 @@ resource "aws_iam_openid_connect_provider" "cluster" {
 # IAM Policy: What Karpenter can do
 resource "aws_iam_policy" "karpenter_controller" {
   name = "${var.cluster_name}-karpenter-controller"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -90,9 +90,9 @@ resource "aws_iam_policy" "karpenter_controller" {
         }
       },
       {
-        Sid    = "AllowMachineMigrationTagging"
-        Effect = "Allow"
-        Action = "ec2:CreateTags"
+        Sid      = "AllowMachineMigrationTagging"
+        Effect   = "Allow"
+        Action   = "ec2:CreateTags"
         Resource = "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:instance/*"
         Condition = {
           StringEquals = {
@@ -147,21 +147,21 @@ resource "aws_iam_policy" "karpenter_controller" {
         }
       },
       {
-        Sid    = "AllowSSMReadActions"
-        Effect = "Allow"
-        Action = "ssm:GetParameter"
+        Sid      = "AllowSSMReadActions"
+        Effect   = "Allow"
+        Action   = "ssm:GetParameter"
         Resource = "arn:aws:ssm:*:*:parameter/aws/service/*"
       },
       {
-        Sid    = "AllowPricingReadActions"
-        Effect = "Allow"
-        Action = "pricing:GetProducts"
+        Sid      = "AllowPricingReadActions"
+        Effect   = "Allow"
+        Action   = "pricing:GetProducts"
         Resource = "*"
       },
       {
-        Sid    = "AllowPassingInstanceRole"
-        Effect = "Allow"
-        Action = "iam:PassRole"
+        Sid      = "AllowPassingInstanceRole"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
         Resource = aws_iam_role.karpenter_node.arn
       },
       {
@@ -178,7 +178,7 @@ resource "aws_iam_policy" "karpenter_controller" {
         Resource = "*"
       },
       {
-        Sid = "AllowInterruptionQueueActions"
+        Sid    = "AllowInterruptionQueueActions"
         Effect = "Allow"
         Action = [
           "sqs:DeleteMessage",
@@ -194,7 +194,7 @@ resource "aws_iam_policy" "karpenter_controller" {
 # IAM Role: Karpenter controller pod assumes this
 resource "aws_iam_role" "karpenter_controller" {
   name = "${var.cluster_name}-karpenter-controller"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -220,7 +220,7 @@ resource "aws_iam_role_policy_attachment" "karpenter_controller" {
 
 resource "aws_iam_role" "karpenter_node" {
   name = "${var.cluster_name}-karpenter-node"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -264,11 +264,11 @@ resource "aws_iam_instance_profile" "karpenter_node" {
 # SQS Queue for Spot interruption notifications
 resource "aws_sqs_queue" "karpenter_interruption" {
   count = var.enable_karpenter ? 1 : 0
-  
-  name                       = "${var.cluster_name}-karpenter-interruption"
-  message_retention_seconds  = 300  # 5 minutes
-  sqs_managed_sse_enabled    = true
-  
+
+  name                      = "${var.cluster_name}-karpenter-interruption"
+  message_retention_seconds = 300 # 5 minutes
+  sqs_managed_sse_enabled   = true
+
   tags = {
     Name = "${var.cluster_name}-karpenter-interruption-queue"
   }
@@ -276,9 +276,9 @@ resource "aws_sqs_queue" "karpenter_interruption" {
 
 resource "aws_sqs_queue_policy" "karpenter_interruption" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   queue_url = aws_sqs_queue.karpenter_interruption[0].id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -299,10 +299,10 @@ resource "aws_sqs_queue_policy" "karpenter_interruption" {
 # EventBridge Rules for interruption events
 resource "aws_cloudwatch_event_rule" "karpenter_spot_interruption" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   name        = "${var.cluster_name}-karpenter-spot-interruption"
   description = "Capture EC2 Spot Instance Interruption Warnings"
-  
+
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Spot Instance Interruption Warning"]
@@ -311,7 +311,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_spot_interruption" {
 
 resource "aws_cloudwatch_event_target" "karpenter_spot_interruption" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   rule      = aws_cloudwatch_event_rule.karpenter_spot_interruption[0].name
   target_id = "KarpenterSpotInterruptionQueue"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn
@@ -320,10 +320,10 @@ resource "aws_cloudwatch_event_target" "karpenter_spot_interruption" {
 # Instance Rebalance Recommendation
 resource "aws_cloudwatch_event_rule" "karpenter_rebalance" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   name        = "${var.cluster_name}-karpenter-rebalance"
   description = "Capture EC2 Instance Rebalance Recommendations"
-  
+
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance Rebalance Recommendation"]
@@ -332,7 +332,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_rebalance" {
 
 resource "aws_cloudwatch_event_target" "karpenter_rebalance" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   rule      = aws_cloudwatch_event_rule.karpenter_rebalance[0].name
   target_id = "KarpenterRebalanceQueue"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn
@@ -341,10 +341,10 @@ resource "aws_cloudwatch_event_target" "karpenter_rebalance" {
 # Instance State Change (termination, stopping)
 resource "aws_cloudwatch_event_rule" "karpenter_state_change" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   name        = "${var.cluster_name}-karpenter-state-change"
   description = "Capture EC2 Instance State Changes"
-  
+
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance State-change Notification"]
@@ -353,7 +353,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_state_change" {
 
 resource "aws_cloudwatch_event_target" "karpenter_state_change" {
   count = var.enable_karpenter ? 1 : 0
-  
+
   rule      = aws_cloudwatch_event_rule.karpenter_state_change[0].name
   target_id = "KarpenterStateChangeQueue"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn

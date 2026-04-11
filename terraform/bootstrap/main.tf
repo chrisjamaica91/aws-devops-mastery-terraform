@@ -10,7 +10,7 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -26,7 +26,7 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-  
+
   default_tags {
     tags = {
       Project     = "AWS-DevOps-Mastery"
@@ -42,9 +42,9 @@ provider "aws" {
 
 module "github_oidc" {
   source = "../modules/github-oidc"
-  
-  github_repository = var.github_repository
-  role_name         = "GitHubActionsRole-DevOpsMastery"
+
+  github_repositories = var.github_repositories
+  role_name           = "GitHubActionsRole-DevOpsMastery"
 }
 
 # ==========================================
@@ -54,7 +54,7 @@ module "github_oidc" {
 # Dev environment state
 module "terraform_state_dev" {
   source = "../modules/terraform-state"
-  
+
   environment        = "dev"
   project_name       = var.project_name
   enable_versioning  = true
@@ -64,7 +64,7 @@ module "terraform_state_dev" {
 # Staging environment state
 module "terraform_state_staging" {
   source = "../modules/terraform-state"
-  
+
   environment        = "staging"
   project_name       = var.project_name
   enable_versioning  = true
@@ -74,9 +74,9 @@ module "terraform_state_staging" {
 # Production environment state
 module "terraform_state_production" {
   source = "../modules/terraform-state"
-  
+
   environment        = "production"
   project_name       = var.project_name
   enable_versioning  = true
-  enable_replication = false  # Set to true for cross-region replication
+  enable_replication = false # Set to true for cross-region replication
 }

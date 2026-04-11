@@ -5,7 +5,7 @@
 
 # Custom policy document with only required permissions
 data "aws_iam_policy_document" "github_actions_permissions" {
-  
+
   # ==========================================
   # S3 Permissions - Terraform State Management
   # ==========================================
@@ -26,7 +26,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:PutBucketTagging"
     ]
     resources = [
-      "arn:aws:s3:::*-terraform-state-*",  # Only state buckets
+      "arn:aws:s3:::*-terraform-state-*", # Only state buckets
     ]
   }
 
@@ -43,18 +43,18 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-statement {
-  sid    = "TerraformStateLockfileManagement"
-  effect = "Allow"
-  actions = [
-    "s3:GetObject",
-    "s3:PutObject",
-    "s3:DeleteObject"
-  ]
-  resources = [
-    "arn:aws:s3:::*-terraform-state-*/*.tflock"
-  ]
-}
+  statement {
+    sid    = "TerraformStateLockfileManagement"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject"
+    ]
+    resources = [
+      "arn:aws:s3:::*-terraform-state-*/*.tflock"
+    ]
+  }
 
   # ==========================================
   # EKS - Kubernetes Cluster Management
@@ -118,7 +118,7 @@ statement {
       "ec2:AllocateAddress",
       "ec2:ReleaseAddress",
       "ec2:DescribeAddresses",
-      
+
       # Security Groups
       "ec2:CreateSecurityGroup",
       "ec2:DeleteSecurityGroup",
@@ -129,12 +129,12 @@ statement {
       "ec2:RevokeSecurityGroupEgress",
       "ec2:CreateSecurityGroupRule",
       "ec2:DeleteSecurityGroupRule",
-      
+
       # Tags
       "ec2:CreateTags",
       "ec2:DeleteTags",
       "ec2:DescribeTags",
-      
+
       # Instances (for EKS worker nodes)
       "ec2:RunInstances",
       "ec2:TerminateInstances",
@@ -143,7 +143,7 @@ statement {
       "ec2:DescribeImages",
       "ec2:DescribeKeyPairs",
       "ec2:DescribeAvailabilityZones",
-      
+
       # Launch templates (for node groups)
       "ec2:CreateLaunchTemplate",
       "ec2:DeleteLaunchTemplate",
@@ -212,9 +212,9 @@ statement {
       "iam:PassRole"
     ]
     resources = [
-      "arn:aws:iam::*:role/eks-*",           # EKS service roles
-      "arn:aws:iam::*:role/GitHubActions*",  # GitHub Actions roles
-      "arn:aws:iam::*:role/*-node-role",     # EKS node roles
+      "arn:aws:iam::*:role/eks-*",          # EKS service roles
+      "arn:aws:iam::*:role/GitHubActions*", # GitHub Actions roles
+      "arn:aws:iam::*:role/*-node-role",    # EKS node roles
     ]
   }
 

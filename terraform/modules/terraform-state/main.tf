@@ -96,9 +96,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
 # ==========================================
 
 resource "aws_dynamodb_table" "terraform_lock" {
-  count = var.enable_dynamodb_locking ? 1 : 0 
+  count        = var.enable_dynamodb_locking ? 1 : 0
   name         = "terraform-lock-${var.environment}"
-  billing_mode = "PAY_PER_REQUEST"  # Cost: ~$0.01/month with light usage
+  billing_mode = "PAY_PER_REQUEST" # Cost: ~$0.01/month with light usage
   hash_key     = "LockID"
 
   attribute {

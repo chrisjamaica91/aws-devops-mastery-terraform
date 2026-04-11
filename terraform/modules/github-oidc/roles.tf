@@ -3,10 +3,10 @@
 # ==========================================
 # These roles define what GitHub Actions can do in AWS
 
-# Variable for GitHub repository
-variable "github_repository" {
-  description = "GitHub repository in format: owner/repo"
-  type        = string
+# Variable for GitHub repositories allowed to assume the role
+variable "github_repositories" {
+  description = "List of GitHub repositories in format: owner/repo"
+  type        = list(string)
 }
 
 variable "role_name" {
@@ -36,8 +36,10 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            # Allow only our repository (all branches for now)
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:*"
+            # Allow multiple repositories (all branches)
+            "token.actions.githubusercontent.com:sub" = [
+              for repo in var.github_repositories : "repo:${repo}:*"
+            ]
           }
         }
       }

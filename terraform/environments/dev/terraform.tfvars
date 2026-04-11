@@ -11,19 +11,19 @@ project_name = "aws-devops-mastery"
 vpc_cidr           = "10.0.0.0/16"
 az_count           = 2
 enable_nat_gateway = true
-single_nat_gateway = true  # Single NAT = $32/month vs $64/month
+single_nat_gateway = true # Single NAT = $32/month vs $64/month
 
 # EKS - Small cluster for dev
 kubernetes_version     = "1.30"
-enable_public_endpoint = true  # Access from home/office
-api_access_cidrs       = ["0.0.0.0/0"]  # Restrict in production
+enable_public_endpoint = true          # Access from home/office
+api_access_cidrs       = ["0.0.0.0/0"] # Restrict in production
 
 # Managed Node Group - 2 small nodes
 managed_node_group_desired_size   = 2
 managed_node_group_min_size       = 1
 managed_node_group_max_size       = 3
 managed_node_group_instance_types = ["t3.medium"]
-managed_node_group_capacity_type  = "ON_DEMAND"  # Use SPOT for further savings
+managed_node_group_capacity_type  = "ON_DEMAND" # Use SPOT for further savings
 managed_node_group_disk_size      = 20
 
 # EKS Add-ons (compatible with k8s 1.30)
@@ -36,6 +36,6 @@ enable_karpenter = true
 
 # ECR - Aggressive cleanup for dev
 service_names               = ["javascript-api", "java-service", "rust-processor"]
-ecr_max_image_count         = 5  # Keep only 5 recent images
+ecr_max_image_count         = 5 # Keep only 5 recent images
 ecr_untagged_retention_days = 7
 ecr_scan_on_push            = true

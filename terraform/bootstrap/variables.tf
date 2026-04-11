@@ -8,9 +8,9 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "github_repository" {
-  description = "GitHub repository in format: owner/repo"
-  type        = string
+variable "github_repositories" {
+  description = "List of GitHub repositories in format: owner/repo"
+  type        = list(string)
 }
 
 variable "project_name" {

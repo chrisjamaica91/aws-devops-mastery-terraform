@@ -107,7 +107,7 @@ resource "aws_subnet" "private" {
       "kubernetes.io/role/internal-elb" = "1"
       # Required for EKS
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-       # ADD THIS TAG for Karpenter discovery of private subnets:
+      # ADD THIS TAG for Karpenter discovery of private subnets:
       "karpenter.sh/discovery" = var.cluster_name
     }
   )
@@ -194,8 +194,8 @@ resource "aws_route_table" "private" {
   tags = merge(
     var.tags,
     {
-       Name = "${var.project_name}-${var.environment}-private-${data.aws_availability_zones.available.names[count.index]}"
-      "kubernetes.io/role/internal-elb" = "1"
+      Name                                        = "${var.project_name}-${var.environment}-private-${data.aws_availability_zones.available.names[count.index]}"
+      "kubernetes.io/role/internal-elb"           = "1"
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
     }
   )
