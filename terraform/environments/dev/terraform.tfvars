@@ -39,4 +39,3 @@ service_names               = ["javascript-api", "java-service", "rust-processor
 ecr_max_image_count         = 5 # Keep only 5 recent images
 ecr_untagged_retention_days = 7
 ecr_scan_on_push            = true
-# Testing dev-plan workflow
