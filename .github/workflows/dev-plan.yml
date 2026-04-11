@@ -13,9 +13,9 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/environments/dev/**'
-      - 'terraform/modules/**'
-      - '.github/workflows/**'
+      - "terraform/environments/dev/**"
+      - "terraform/modules/**"
+      - ".github/workflows/**"
 
   workflow_dispatch:
 
@@ -38,12 +38,12 @@ jobs:
   secrets-scan:
     name: 🔐 Detect Secrets
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch full git history for gitleaks to scan commit range
+          fetch-depth: 0 # Fetch full git history for gitleaks to scan commit range
 
       - name: Run gitleaks
         id: gitleaks
@@ -60,7 +60,7 @@ jobs:
   lint:
     name: 🔍 Lint Terraform
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
   security:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -122,7 +122,6 @@ jobs:
           format: default
           additional_args: --minimum-severity MEDIUM
 
-          
   # ============================================================================
   # JOB 4: TERRAFORM PLAN
   # ============================================================================
@@ -132,8 +131,8 @@ jobs:
   terraform-plan:
     name: 📋 Plan Infrastructure Changes
     runs-on: ubuntu-latest
-    needs: [secrets-scan, lint, security]  # 🔥 WAITS for all 3 jobs to pass!
-    
+    needs: [secrets-scan, lint, security] # 🔥 WAITS for all 3 jobs to pass!
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -176,15 +175,21 @@ jobs:
         if: always()
         run: |
           echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
-          cat ${{ env.TERRAFORM_DIR }}/plan_output.txt >> $GITHUB_ENV
+          if [ -f "${{ env.TERRAFORM_DIR }}/plan_output.txt" ]; then
+            cat ${{ env.TERRAFORM_DIR }}/plan_output.txt >> $GITHUB_ENV
+          else
+            echo "Plan output not available - terraform plan may have failed during initialization" >> $GITHUB_ENV
+          fi
           echo "EOF" >> $GITHUB_ENV
 
       - name: Setup Infracost
+        if: steps.plan.outcome == 'success'
         uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Generate Infracost Breakdown
+        if: steps.plan.outcome == 'success'
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: |
           infracost breakdown --path tfplan \
@@ -205,37 +210,37 @@ jobs:
             const infracost = fs.existsSync('${{ env.TERRAFORM_DIR }}/infracost.json') 
               ? JSON.parse(fs.readFileSync('${{ env.TERRAFORM_DIR }}/infracost.json', 'utf8'))
               : null;
-            
+
             // Build comprehensive comment with ALL job results
             let comment = `## 🏗️ Dev Environment Terraform Plan\n\n`;
-            
+
             // Security scan results from OTHER jobs
             comment += `### 🔒 Security Scan Results\n`;
             comment += `- 🔐 Secrets Detection: **${{ needs.secrets-scan.result }}**\n`;
             comment += `- 🔍 Terraform Linting: **${{ needs.lint.result }}**\n`;
             comment += `- 🛡️ Security Scanning: **${{ needs.security.result }}**\n\n`;
-            
+
             // Validation results from THIS job
             comment += `### ✅ Validation\n`;
             comment += `- Terraform Validate: **${{ steps.validate.outcome }}**\n`;
             comment += `- Format Check: **${{ steps.fmt.outcome }}**\n\n`;
-            
+
             // Plan output
             comment += `### 📋 Plan Output\n\`\`\`terraform\n${planOutput}\n\`\`\`\n\n`;
-            
+
             // Cost estimate
             if (infracost && infracost.totalMonthlyCost) {
               comment += `### 💰 Cost Estimate\n`;
               comment += `**Monthly Cost:** $${infracost.totalMonthlyCost}\n`;
               comment += `**Cost Change:** ${infracost.diffTotalMonthlyCost > 0 ? '+' : ''}$${infracost.diffTotalMonthlyCost}/month\n\n`;
             }
-            
+
             // Next steps
             comment += `### ✅ Next Steps\n`;
             comment += `- Review the plan output above\n`;
             comment += `- Check cost estimates\n`;
             comment += `- Approve if changes look correct\n`;
-            
+
             // Post the comment
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -269,25 +274,25 @@ jobs:
         run: |
           echo "## 🏗️ Dev Environment - Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Plan status
           if [ "${{ steps.plan.outcome }}" == "success" ]; then
             echo "✅ **Plan Status:** Success" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Plan Status:** Failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Security Scans (Parallel Execution)" >> $GITHUB_STEP_SUMMARY
           echo "- 🔐 Secrets Detection: ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🔍 Terraform Linting: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🛡️ Security Scanning: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Validation" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Terraform Validate: ${{ steps.validate.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "- 📝 Format Check: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "_⚡ Total runtime: ~60-90 seconds (parallel execution)_" >> $GITHUB_STEP_SUMMARY
