@@ -217,7 +217,7 @@ jobs:
 
             // Security scan results from OTHER jobs
             comment += `### 🔒 Security Scan Results\n`;
-            comment += `- 🔐 Secrets Detection: **${{ needs.secrets-scan.result }}**\n`;
+            comment += `- 🔐 Secrets Detection: **${{ needs['secrets-scan'].result }}**\n`;
             comment += `- 🔍 Terraform Linting: **${{ needs.lint.result }}**\n`;
             comment += `- 🛡️ Security Scanning: **${{ needs.security.result }}**\n\n`;
 
