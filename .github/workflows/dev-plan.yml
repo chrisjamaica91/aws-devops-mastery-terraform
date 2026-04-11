@@ -285,7 +285,7 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Security Scans (Parallel Execution)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔐 Secrets Detection: ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 Secrets Detection: ${{ needs['secrets-scan'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🔍 Terraform Linting: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🛡️ Security Scanning: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
 
