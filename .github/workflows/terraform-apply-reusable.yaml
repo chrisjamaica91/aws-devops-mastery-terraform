@@ -65,7 +65,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::211125742432:role/GitHubActionsRole-DevOpsMastery
+          role-to-assume: arn:aws:iam::737026300147:role/GitHubActionsRole-DevOpsMastery
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformApply-${{ inputs.environment }}
       
