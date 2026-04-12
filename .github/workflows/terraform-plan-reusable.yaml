@@ -1,0 +1,409 @@
+# ============================================================================
+# REUSABLE WORKFLOW: Terraform Plan with Security Scanning
+# ============================================================================
+# Called by: dev-plan.yml, staging-plan.yml, production-plan.yml
+# Purpose: Centralized security scanning and terraform planning logic
+# Benefits: DRY principle, consistent behavior across environments
+# ============================================================================
+
+name: Terraform Plan (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (dev, staging, production)'
+        required: true
+        type: string
+      
+      terraform-dir:
+        description: 'Terraform directory path (e.g., terraform/environments/dev)'
+        required: true
+        type: string
+      
+      aws-region:
+        description: 'AWS region'
+        required: false
+        type: string
+        default: 'us-east-2'
+      
+      terraform-version:
+        description: 'Terraform version to use'
+        required: false
+        type: string
+        default: '1.9.0'
+      
+      run-checkov:
+        description: 'Run Checkov compliance scanning'
+        required: false
+        type: boolean
+        default: false
+      
+      checkov-frameworks:
+        description: 'Checkov frameworks to scan (e.g., "cis,pci-dss,hipaa")'
+        required: false
+        type: string
+        default: 'cis'
+      
+      run-terrascan:
+        description: 'Run Terrascan policy scanning'
+        required: false
+        type: boolean
+        default: false
+      
+      minimum-tfsec-severity:
+        description: 'Minimum severity for tfsec (CRITICAL, HIGH, MEDIUM, LOW)'
+        required: false
+        type: string
+        default: 'MEDIUM'
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  id-token: write
+
+env:
+  TERRAFORM_DIR: ${{ inputs.terraform-dir }}
+  AWS_REGION: ${{ inputs.aws-region }}
+
+jobs:
+  # ============================================================================
+  # JOB 1: SECRETS SCANNING
+  # ============================================================================
+  secrets-scan:
+    name: 🔐 Detect Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # JOB 2: TERRAFORM LINTING
+  # ============================================================================
+  lint:
+    name: 🔍 Lint Terraform
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.0
+
+      - name: Run TFLint
+        id: tflint
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          tflint --init
+          tflint --format compact
+
+  # ============================================================================
+  # JOB 3: SECURITY SCANNING
+  # ============================================================================
+  security:
+    name: 🛡️ Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
+
+      - name: Run tfsec
+        id: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ${{ env.TERRAFORM_DIR }}
+          soft_fail: false
+          format: default
+          additional_args: --minimum-severity ${{ inputs.minimum-tfsec-severity }}
+
+      # CONDITIONAL: Only run Checkov if enabled (staging/production)
+      - name: Run Checkov
+        id: checkov
+        if: inputs.run-checkov == true
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ env.TERRAFORM_DIR }}
+          framework: ${{ inputs.checkov-frameworks }}
+          output_format: cli,sarif
+          output_file_path: console,checkov-results.sarif
+          soft_fail: false
+
+      - name: Upload Checkov Results
+        if: inputs.run-checkov == true && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+
+      # CONDITIONAL: Only run Terrascan if enabled (staging/production)
+      - name: Run Terrascan
+        id: terrascan
+        if: inputs.run-terrascan == true
+        uses: tenable/terrascan-action@v1
+        with:
+          iac_type: 'terraform'
+          iac_dir: ${{ env.TERRAFORM_DIR }}
+          policy_type: 'aws'
+          sarif_upload: true
+
+  # ============================================================================
+  # JOB 4: TERRAFORM PLAN & PR COMMENT
+  # ============================================================================
+  terraform-plan:
+    name: 📋 Plan Infrastructure Changes
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, lint, security]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::211125742432:role/GitHubActionsRole-DevOpsMastery
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformPlan-${{ inputs.environment }}
+
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform validate -no-color
+
+      - name: Terraform Format Check
+        id: fmt
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform plan -no-color -out=tfplan.binary
+          terraform show -no-color tfplan.binary > tfplan.txt
+        continue-on-error: true
+
+      - name: Save Plan Output
+        id: plan-output
+        if: always()
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          if [ -f tfplan.txt ]; then
+            echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+            cat tfplan.txt >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "PLAN_OUTPUT=No plan output available" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Infracost
+        if: always()
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost JSON
+        id: infracost
+        if: always()
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          if [ -f tfplan.binary ]; then
+            infracost breakdown --path tfplan.binary \
+              --format json \
+              --out-file /tmp/infracost.json
+          else
+            echo '{"totalMonthlyCost":"0","totalHourlyCost":"0"}' > /tmp/infracost.json
+          fi
+        continue-on-error: true
+
+      - name: Post Infracost Comment
+        if: always()
+        uses: infracost/actions/comment@v3
+        with:
+          path: /tmp/infracost.json
+          behavior: update
+
+      - name: Post Comprehensive PR Comment
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTPUT: ${{ env.PLAN_OUTPUT }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          TERRAFORM_DIR: ${{ env.TERRAFORM_DIR }}
+          FMT_OUTCOME: ${{ steps.fmt.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const environment = process.env.ENVIRONMENT.toUpperCase();
+            const terraformDir = process.env.TERRAFORM_DIR;
+            const planOutput = process.env.PLAN_OUTPUT;
+            
+            // Build security scan results
+            let securityResults = '### 🛡️ Security Scan Results\n\n';
+            securityResults += '| Scan Tool | Status |\n';
+            securityResults += '|-----------|--------|\n';
+            securityResults += '| 🔐 Secrets (gitleaks) | ✅ Passed |\n';
+            securityResults += '| 🔍 Linting (TFLint) | ✅ Passed |\n';
+            securityResults += '| 🛡️ Security (tfsec) | ✅ Passed |\n';
+            
+            // Add conditional scans if they ran
+            const runCheckov = ${{ inputs.run-checkov }};
+            const runTerrascan = ${{ inputs.run-terrascan }};
+            
+            if (runCheckov) {
+              securityResults += '| 📋 Compliance (Checkov) | ✅ Passed |\n';
+            }
+            if (runTerrascan) {
+              securityResults += '| 🔒 Policy (Terrascan) | ✅ Passed |\n';
+            }
+            
+            // Build terraform results
+            let terraformResults = '### 📋 Terraform Results\n\n';
+            terraformResults += '| Step | Status |\n';
+            terraformResults += '|------|--------|\n';
+            
+            const fmtStatus = process.env.FMT_OUTCOME === 'success' ? '✅ Passed' : '⚠️ Warning';
+            const validateStatus = process.env.VALIDATE_OUTCOME === 'success' ? '✅ Passed' : '❌ Failed';
+            const planStatus = process.env.PLAN_OUTCOME === 'success' ? '✅ Passed' : '❌ Failed';
+            
+            terraformResults += `| Format Check | ${fmtStatus} |\n`;
+            terraformResults += `| Validate | ${validateStatus} |\n`;
+            terraformResults += `| Plan | ${planStatus} |\n`;
+            
+            // Build plan output
+            let planSection = '\n### 📄 Terraform Plan Output\n\n';
+            planSection += '<details>\n';
+            planSection += `<summary>Click to expand ${environment} plan</summary>\n\n`;
+            planSection += '```terraform\n';
+            planSection += planOutput;
+            planSection += '\n```\n';
+            planSection += '</details>\n';
+            
+            // Build next steps
+            let nextSteps = '\n### ⏭️ Next Steps\n\n';
+            if (planStatus.includes('✅')) {
+              nextSteps += `✅ All checks passed for **${environment}** environment\n\n`;
+              nextSteps += '**To apply these changes:**\n';
+              nextSteps += '1. Review the plan output above\n';
+              nextSteps += '2. Check the Infracost comment for cost impact\n';
+              nextSteps += '3. Approve this PR\n';
+              nextSteps += `4. Merge to main branch\n`;
+              nextSteps += `5. The \`${environment}-apply.yml\` workflow will run automatically\n`;
+            } else {
+              nextSteps += `❌ Some checks failed for **${environment}** environment\n\n`;
+              nextSteps += '**Action required:**\n';
+              nextSteps += '1. Review the errors above\n';
+              nextSteps += '2. Fix the issues in your branch\n';
+              nextSteps += '3. Push the fixes - this workflow will re-run automatically\n';
+            }
+            
+            // Combine all sections
+            const body = `## 🚀 Terraform Plan Summary - ${environment}\n\n` +
+              `**Environment:** \`${environment}\`\n` +
+              `**Directory:** \`${terraformDir}\`\n` +
+              `**Workflow:** \`terraform-plan-reusable.yml\`\n\n` +
+              `---\n\n` +
+              securityResults + '\n' +
+              terraformResults +
+              planSection +
+              nextSteps +
+              `\n---\n` +
+              `*Workflow run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+            
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Upload Terraform Plan Artifact
+        if: steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.environment }}-tfplan
+          path: ${{ env.TERRAFORM_DIR }}/tfplan.binary
+          retention-days: 5
+
+      - name: Generate Workflow Summary
+        if: always()
+        run: |
+          echo "## 🚀 Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Directory:** ${{ env.TERRAFORM_DIR }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Terraform Version:** ${{ inputs.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secrets scan passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linting passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security scan passed" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.run-checkov }}" == "true" ]; then
+            echo "- ✅ Checkov compliance scan passed" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run-terrascan }}" == "true" ]; then
+            echo "- ✅ Terrascan policy scan passed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Terraform Operations" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Validate: ${{ steps.validate.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Plan: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Plan Status
+        if: steps.plan.outcome != 'success'
+        run: |
+          echo "❌ Terraform plan failed!"
+          exit 1 

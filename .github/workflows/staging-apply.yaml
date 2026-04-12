@@ -1,0 +1,25 @@
+# ============================================================================
+# Staging Environment - Apply
+# ============================================================================
+# Trigger: After PR merges to main
+# Approval: 1 person required (set in GitHub Settings → Environments)
+# ============================================================================
+
+name: Staging Environment - Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/environments/staging/**'
+      - 'terraform/modules/**'
+
+jobs:
+  apply:
+    name: Apply Changes
+    environment: staging  # Requires 1 approval (set in GitHub Settings)
+    uses: ./.github/workflows/terraform-apply-reusable.yaml
+    with:
+      environment: staging
+      terraform-dir: terraform/environments/staging
+    secrets: inherit
