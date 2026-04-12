@@ -1,0 +1,19 @@
+name: Production Environment - Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/environments/production/**'
+      - 'terraform/modules/**'
+
+jobs:
+  plan:
+    uses: ./.github/workflows/terraform-plan-reusable.yml
+    with:
+      environment: production
+      terraform-dir: terraform/environments/production
+      run-checkov: true
+      checkov-frameworks: "cis,pci-dss,hipaa,soc2,nist"
+      run-terrascan: true
+    secrets: inherit

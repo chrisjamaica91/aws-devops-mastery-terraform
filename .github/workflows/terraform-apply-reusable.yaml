@@ -1,0 +1,109 @@
+# ============================================================================
+# REUSABLE WORKFLOW: Terraform Apply
+# ============================================================================
+# Called by: dev-apply.yml, staging-apply.yml, production-apply.yml
+# Purpose: Centralized terraform apply logic
+# Note: Environment approval gates are in the CALLER workflows, not here
+# ============================================================================
+
+name: Terraform Apply (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (dev, staging, production)'
+        required: true
+        type: string
+      
+      terraform-dir:
+        description: 'Terraform directory path (e.g., terraform/environments/dev)'
+        required: true
+        type: string
+      
+      aws-region:
+        description: 'AWS region'
+        required: false
+        type: string
+        default: 'us-east-2'
+      
+      terraform-version:
+        description: 'Terraform version to use'
+        required: false
+        type: string
+        default: '1.9.0'
+      
+      auto-approve:
+        description: 'Auto-approve terraform apply (should be true for CI/CD)'
+        required: false
+        type: boolean
+        default: true
+        
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TERRAFORM_DIR: ${{ inputs.terraform-dir }}
+  AWS_REGION: ${{ inputs.aws-region }}
+  
+jobs:
+  apply:
+    name: 🚀 Apply Infrastructure Changes
+    runs-on: ubuntu-latest
+    
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+      
+    - name: Configure AWS credentials (OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::211125742432:role/GitHubActionsRole-DevOpsMastery
+        aws-region: ${{ env.AWS_REGION }}
+        role-session-name: GitHubActions-TerraformApply-${{ inputs.environment }}
+    
+    - name: Terraform Init
+      id: init
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: terraform init
+
+    - name: Terraform Apply
+      id: apply
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: |
+        if [ "${{ inputs.auto-approve }}" == "true" ]; then
+          terraform apply -auto-approve
+        else
+          terraform apply
+        fi
+              
+    - name: Generate Deployment Summary
+      if: always()
+      run: |
+        echo "## 🚀 Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Directory:** ${{ env.TERRAFORM_DIR }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Terraform Version:** ${{ inputs.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.apply.outcome }}" == "success" ]; then
+          echo "✅ **Status:** Deployment successful" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Status:** Deployment failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Check Apply Status
+      if: steps.apply.outcome != 'success'
+      run: |
+        echo "❌ Terraform apply failed!"
+        exit 1

@@ -1,0 +1,19 @@
+name: Staging Environment - Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/environments/staging/**'
+      - 'terraform/modules/**'
+
+jobs:
+  plan:
+    uses: ./.github/workflows/terraform-plan-reusable.yml
+    with:
+      environment: staging
+      terraform-dir: terraform/environments/staging
+      run-checkov: true
+      checkov-frameworks: "cis"
+      run-terrascan: true
+    secrets: inherit

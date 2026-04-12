@@ -1,0 +1,26 @@
+# ============================================================================
+# Production Environment - Apply
+# ============================================================================
+# Trigger: After PR merges to main
+# Approval: 2 people required (set in GitHub Settings → Environments)
+# Wait: 5-minute cool-down after approval (set in GitHub Settings)
+# ============================================================================
+
+name: Production Environment - Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/environments/production/**'
+      - 'terraform/modules/**'
+
+jobs:
+  apply:
+    name: Apply Changes
+    environment: production  # Requires 2 approvals + 5min wait (set in GitHub Settings)
+    uses: ./.github/workflows/terraform-apply-reusable.yml
+    with:
+      environment: production
+      terraform-dir: terraform/environments/production
+    secrets: inherit
