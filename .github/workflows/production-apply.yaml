@@ -15,10 +15,12 @@ on:
       - 'terraform/environments/production/**'
       - 'terraform/modules/**'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   apply:
-    name: Apply Changes
-    environment: production  # Requires 2 approvals + 5min wait (set in GitHub Settings)
     uses: ./.github/workflows/terraform-apply-reusable.yaml
     with:
       environment: production

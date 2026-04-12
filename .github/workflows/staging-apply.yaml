@@ -14,10 +14,12 @@ on:
       - 'terraform/environments/staging/**'
       - 'terraform/modules/**'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   apply:
-    name: Apply Changes
-    environment: staging  # Requires 1 approval (set in GitHub Settings)
     uses: ./.github/workflows/terraform-apply-reusable.yaml
     with:
       environment: staging
