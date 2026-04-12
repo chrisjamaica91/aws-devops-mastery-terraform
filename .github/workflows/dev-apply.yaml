@@ -18,7 +18,7 @@ jobs:
   apply:
     name: Apply Changes
     environment: dev  # No approval required (set in GitHub Settings)
-    uses: ./.github/workflows/terraform-apply-reusable.yml
+    uses: ./.github/workflows/terraform-apply-reusable.yaml
     with:
       environment: dev
       terraform-dir: terraform/environments/dev

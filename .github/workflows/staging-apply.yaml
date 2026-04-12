@@ -18,7 +18,7 @@ jobs:
   apply:
     name: Apply Changes
     environment: staging  # Requires 1 approval (set in GitHub Settings)
-    uses: ./.github/workflows/terraform-apply-reusable.yml
+    uses: ./.github/workflows/terraform-apply-reusable.yaml
     with:
       environment: staging
       terraform-dir: terraform/environments/staging

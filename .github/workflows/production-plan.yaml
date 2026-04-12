@@ -9,7 +9,7 @@ on:
 
 jobs:
   plan:
-    uses: ./.github/workflows/terraform-plan-reusable.yml
+    uses: ./.github/workflows/terraform-plan-reusable.yaml
     with:
       environment: production
       terraform-dir: terraform/environments/production
