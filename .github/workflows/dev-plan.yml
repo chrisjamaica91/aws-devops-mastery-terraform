@@ -7,6 +7,12 @@ on:
       - 'terraform/environments/dev/**'
       - 'terraform/modules/**'
 
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  id-token: write
+
 jobs:
   plan:
     uses: ./.github/workflows/terraform-plan-reusable.yaml

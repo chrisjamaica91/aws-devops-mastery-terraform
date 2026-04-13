@@ -204,7 +204,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::211125742432:role/GitHubActionsRole-DevOpsMastery
+          role-to-assume: arn:aws:iam::737026300147:role/GitHubActionsRole-DevOpsMastery
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-TerraformPlan-${{ inputs.environment }}
 
@@ -267,10 +267,12 @@ jobs:
 
       - name: Post Infracost Comment
         if: always()
-        uses: infracost/actions/comment@v3
-        with:
-          path: /tmp/infracost.json
-          behavior: update
+        run: |
+          infracost comment github --path /tmp/infracost.json \
+            --repo ${{ github.repository }} \
+            --pull-request ${{ github.event.pull_request.number }} \
+            --github-token ${{ secrets.GITHUB_TOKEN }} \
+            --behavior update
 
       - name: Post Comprehensive PR Comment
         if: always()

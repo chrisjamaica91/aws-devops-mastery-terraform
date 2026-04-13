@@ -52,58 +52,58 @@ jobs:
     name: 🚀 Apply Infrastructure Changes
     runs-on: ubuntu-latest
     
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+        
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::737026300147:role/GitHubActionsRole-DevOpsMastery
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TerraformApply-${{ inputs.environment }}
       
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ inputs.terraform-version }}
-        terraform_wrapper: false
-      
-    - name: Configure AWS credentials (OIDC)
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: arn:aws:iam::211125742432:role/GitHubActionsRole-DevOpsMastery
-        aws-region: ${{ env.AWS_REGION }}
-        role-session-name: GitHubActions-TerraformApply-${{ inputs.environment }}
-    
-    - name: Terraform Init
-      id: init
-      working-directory: ${{ env.TERRAFORM_DIR }}
-      run: terraform init
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init
 
-    - name: Terraform Apply
-      id: apply
-      working-directory: ${{ env.TERRAFORM_DIR }}
-      run: |
-        if [ "${{ inputs.auto-approve }}" == "true" ]; then
-          terraform apply -auto-approve
-        else
-          terraform apply
-        fi
-              
-    - name: Generate Deployment Summary
-      if: always()
-      run: |
-        echo "## 🚀 Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Directory:** ${{ env.TERRAFORM_DIR }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Terraform Version:** ${{ inputs.terraform-version }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ steps.apply.outcome }}" == "success" ]; then
-          echo "✅ **Status:** Deployment successful" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Status:** Deployment failed" >> $GITHUB_STEP_SUMMARY
-        fi
+      - name: Terraform Apply
+        id: apply
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          if [ "${{ inputs.auto-approve }}" == "true" ]; then
+            terraform apply -auto-approve
+          else
+            terraform apply
+          fi
+                
+      - name: Generate Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Directory:** ${{ env.TERRAFORM_DIR }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Terraform Version:** ${{ inputs.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.apply.outcome }}" == "success" ]; then
+            echo "✅ **Status:** Deployment successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Deployment failed" >> $GITHUB_STEP_SUMMARY
+          fi
 
-    - name: Check Apply Status
-      if: steps.apply.outcome != 'success'
-      run: |
-        echo "❌ Terraform apply failed!"
-        exit 1
+      - name: Check Apply Status
+        if: steps.apply.outcome != 'success'
+        run: |
+          echo "❌ Terraform apply failed!"
+          exit 1
