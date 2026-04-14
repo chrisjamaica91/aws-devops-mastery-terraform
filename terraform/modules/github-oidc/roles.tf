@@ -56,10 +56,20 @@ resource "aws_iam_role" "github_actions" {
   )
 }
 
-# Attach our custom least privilege policy
-resource "aws_iam_role_policy_attachment" "github_actions_custom" {
+# Attach all 3 custom least privilege policies
+resource "aws_iam_role_policy_attachment" "infrastructure" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = aws_iam_policy.github_actions_policy.arn
+  policy_arn = aws_iam_policy.infrastructure.arn
+}
+
+resource "aws_iam_role_policy_attachment" "kubernetes" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.kubernetes.arn
+}
+
+resource "aws_iam_role_policy_attachment" "supporting" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.supporting.arn
 }
 
 # Output the role ARN (we'll use this in GitHub Actions)
