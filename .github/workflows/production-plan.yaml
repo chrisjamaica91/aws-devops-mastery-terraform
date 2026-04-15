@@ -1,4 +1,4 @@
-name: Production Environment - Plan
+name: Production Environment
 
 on:
   pull_request:

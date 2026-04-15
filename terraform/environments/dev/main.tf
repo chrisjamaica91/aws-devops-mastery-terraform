@@ -44,7 +44,7 @@ locals {
 # ==========================================
 
 module "vpc" {
-  source = "../../modules/vpc"
+  source = "git::https://github.com/chrisjamaica91/aws-devops-mastery-terraform.git//terraform/modules/vpc?ref=vpc-v1.0.0"
 
   project_name = var.project_name
   environment  = var.environment
@@ -63,7 +63,7 @@ module "vpc" {
 # ==========================================
 
 module "eks" {
-  source = "../../modules/eks"
+  source = "git::https://github.com/chrisjamaica91/aws-devops-mastery-terraform.git//terraform/modules/eks?ref=eks-v1.0.0"
 
   cluster_name = local.cluster_name
   environment  = var.environment
@@ -104,7 +104,7 @@ module "eks" {
 # ==========================================
 
 module "ecr" {
-  source = "../../modules/ecr"
+  source = "git::https://github.com/chrisjamaica91/aws-devops-mastery-terraform.git//terraform/modules/ecr?ref=ecr-v1.0.0"
 
   project_name = var.project_name
   environment  = var.environment

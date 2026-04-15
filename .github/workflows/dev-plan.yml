@@ -1,4 +1,4 @@
-name: Dev Environment - Plan
+name: Dev Environment
 
 on:
   pull_request:

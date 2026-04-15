@@ -1,4 +1,4 @@
-name: Staging Environment - Plan
+name: Staging Environment
 
 on:
   pull_request:

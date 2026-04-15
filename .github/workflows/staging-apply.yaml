@@ -12,7 +12,6 @@ on:
     branches: [main]
     paths:
       - 'terraform/environments/staging/**'
-      - 'terraform/modules/**'
 
 permissions:
   contents: read
