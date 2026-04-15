@@ -46,3 +46,8 @@ output "availability_zones" {
   description = "List of availability zones used"
   value       = data.aws_availability_zones.available.names
 }
+
+output "test_output" {
+  description = "Test output for module versioning"
+  value       = data.aws_availability_zones.available.names
+}
