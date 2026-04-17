@@ -44,7 +44,7 @@ locals {
 # ==========================================
 
 module "vpc" {
-  source = "git::https://github.com/chrisjamaica91/aws-devops-mastery-terraform.git//terraform/modules/vpc?ref=vpc-v1.0.0"
+  source = "git::https://github.com/chrisjamaica91/aws-devops-mastery-terraform.git//terraform/modules/vpc?ref=vpc-v1.1.0"
 
   project_name = var.project_name
   environment  = var.environment
